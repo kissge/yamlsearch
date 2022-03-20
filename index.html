@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>yamlsearch</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"
+        integrity="sha512-CSBhVREyzHAjAFfBlIBakjoRUKp5h7VSweP0InR/pAJyptH7peuhCsqAI/snV+TwZmXZqoUklpXp6R6wMnYf5Q=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/highlight.min.js"></script>
+    <style>
+        main {
+            max-width: 800px;
+            margin: auto;
+        }
+
+        textarea {
+            width: 100%;
+            transition: height 0.2s;
+        }
+
+        li>span {
+            font-family: monospace;
+            color: #a23b3b;
+            border: 1px solid #eed7d7;
+            border-radius: 0.25em;
+            padding: 0 0.25em;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <textarea style="height: 80vh" placeholder="Paste YAML (or JSON) file here"></textarea>
+        <input list="datalist" placeholder="Search" />
+        <div></div>
+        <datalist id="datalist"></datalist>
+    </main>
+    <script>
+        const textarea = document.querySelector('textarea');
+        const input = document.querySelector('input');
+        const div = document.querySelector('div');
+        const datalist = document.querySelector('datalist');
+
+        /** @type {Map<string | number, { value: string; locations: string[] }[]>} */
+        let dictionary = new Map();
+
+        if (localStorage.getItem('input')) {
+            textarea.value = localStorage.getItem('input');
+            initializeDictionary();
+        }
+
+        textarea.addEventListener('input', () => {
+            if (initializeDictionary()) {
+                search();
+                localStorage.setItem('input', textarea.value);
+            }
+        });
+        textarea.addEventListener('focus', () => {
+            textarea.style.height = '80vh';
+        });
+        textarea.addEventListener('blur', () => {
+            if (textarea.value) {
+                textarea.style.height = '3em';
+            }
+        });
+        input.addEventListener('input', search);
+
+        function initializeDictionary() {
+            try {
+                const root = (/** @type {import('js-yaml')} */ (jsyaml)).load(textarea.value);
+                dictionary = new Map();
+                traverse(root);
+                datalist.innerHTML = Array.from(dictionary.keys()).sort().map(key => `<option value="${key}">`).join('');
+
+                if (!textarea.matches(':focus')) {
+                    setTimeout(() => textarea.style.height = '3em', 1);
+                }
+
+                return true;
+            } catch (e) {
+                console.error(e);
+                div.innerHTML = '<pre>' + String(e) + '</pre>';
+            }
+        }
+
+        function search() {
+            const key = input.value;
+
+            let html = '';
+
+            if (dictionary.has(key)) {
+                const hits = dictionary.get(key).sort((a, b) => b.locations.length - a.locations.length);
+                html += `<h2>${key}</h2><ol>`;
+                for (const hit of hits) {
+                    html += `<li>
+                                ${hit.locations.length} hit${hit.locations.length > 1 ? 's' : ''}
+                                (${hit.locations.map(p => '<span>' + (p || '#root') + '</span>').join(', ')})
+                                <pre><code class="language-yaml">${hit.value}</code></pre>
+                            </li>`;
+                }
+                html += `</ol>`;
+            } else {
+                html = `<p>No results for "${key}"</p>`;
+            }
+
+            div.innerHTML = html;
+
+            hljs.highlightAll();
+        }
+
+        function traverse(obj, prefix = '') {
+            if (!obj || typeof obj !== 'object') {
+                return;
+            }
+
+            Object.entries(obj).forEach(([key, value]) => {
+                const valueString = jsyaml.dump(value);
+                if (!dictionary.has(key)) {
+                    dictionary.set(key, []);
+                }
+                const list = dictionary.get(key);
+                const found = list.find(item => item.value === valueString);
+                if (found) {
+                    found.locations.push(prefix);
+                } else {
+                    list.push({ value: valueString, locations: [prefix] });
+                }
+
+                if (typeof value === 'object') {
+                    traverse(value, prefix ? `${prefix}.${key}` : key);
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
