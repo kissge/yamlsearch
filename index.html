@@ -74,7 +74,7 @@
                 const root = (/** @type {import('js-yaml')} */ (jsyaml)).load(textarea.value);
                 dictionary = new Map();
                 traverse(root);
-                datalist.innerHTML = Array.from(dictionary.keys()).sort().map(key => `<option value="${key}">`).join('');
+                datalist.innerHTML = Array.from(dictionary.keys()).sort().map(key => `<option value="${escapeHTML(key)}">`).join('');
 
                 if (!textarea.matches(':focus')) {
                     setTimeout(() => textarea.style.height = '3em', 1);
@@ -83,7 +83,7 @@
                 return true;
             } catch (e) {
                 console.error(e);
-                div.innerHTML = '<pre>' + String(e) + '</pre>';
+                div.innerHTML = '<pre>' + escapeHTML(String(e)) + '</pre>';
             }
         }
 
@@ -94,12 +94,12 @@
 
             if (dictionary.has(key)) {
                 const hits = dictionary.get(key).sort((a, b) => b.locations.length - a.locations.length);
-                html += `<h2>${key}</h2><ol>`;
+                html += `<h2>${escapeHTML(key)}</h2><ol>`;
                 for (const hit of hits) {
                     html += `<li>
                                 ${hit.locations.length} hit${hit.locations.length > 1 ? 's' : ''}
-                                (${hit.locations.map(p => '<span>' + (p || '#root') + '</span>').join(', ')})
-                                <pre><code class="language-yaml">${hit.value}</code></pre>
+                                (${hit.locations.map(p => '<span>' + escapeHTML(p || '#root') + '</span>').join(', ')})
+                                <pre><code class="language-yaml">${escapeHTML(hit.value)}</code></pre>
                             </li>`;
                 }
                 html += `</ol>`;
@@ -134,6 +134,10 @@
                     traverse(value, prefix ? `${prefix}.${key}` : key);
                 }
             });
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
     </script>
 </body>
